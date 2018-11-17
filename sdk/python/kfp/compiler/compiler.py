@@ -301,7 +301,7 @@ class Compiler(object):
     right = ('{{inputs.parameters.%s}}' % self._param_full_name(condition.operand2)
              if isinstance(condition.operand2, dsl.PipelineParam)
              else str(condition.operand2))
-    return ('%s == %s' % (left, right))
+    return ('%s %s %s' % (left, condition.operator, right))
 
   def _group_to_template(self, group, inputs, outputs, dependencies):
     """Generate template given an OpsGroup.
