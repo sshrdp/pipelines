@@ -39,7 +39,7 @@ spec:
       - name: persistenceagent-image
     steps:
     - - name: build-bootstrapper-image
-        template: build-image
+        template: build-image-from_context_archive
         arguments:
           parameters:
           - name: commit-sha
@@ -49,7 +49,7 @@ spec:
           - name: image-name
             value: "{{inputs.parameters.bootstrapper-image}}"
       - name: build-api-server-image
-        template: build-image
+        template: build-image-from_context_archive
         arguments:
           parameters:
           - name: commit-sha
@@ -61,7 +61,7 @@ spec:
           - name: docker-file
             value: backend/Dockerfile
       - name: build-frontend-image
-        template: build-image
+        template: build-image-from_context_archive
         arguments:
           parameters:
           - name: commit-sha
@@ -73,7 +73,7 @@ spec:
           - name: image-name
             value: "{{inputs.parameters.frontend-image}}"
       - name: build-scheduledworkflow-image
-        template: build-image
+        template: build-image-from_context_archive
         arguments:
           parameters:
           - name: commit-sha
@@ -85,7 +85,7 @@ spec:
           - name: docker-file
             value: backend/Dockerfile.scheduledworkflow
       - name: build-persistenceagent-image
-        template: build-image
+        template: build-image-from_context_archive
         arguments:
           parameters:
           - name: commit-sha
@@ -118,6 +118,80 @@ spec:
         "--docker_file", "{{inputs.parameters.docker-file}}",
         "--image_name", "{{inputs.parameters.image-name}}",
       ]
+      env:
+      - name: DOCKER_HOST
+        value: 127.0.0.1
+    sidecars:
+    - name: dind
+      image: docker:17.10-dind
+      securityContext:
+        privileged: true
+      mirrorVolumeMounts: true
+
+  # Build image and upload to GCR
+  - name: build-image-from_context_archive
+    inputs:
+      parameters:
+      # The github commit-sha to pull code from
+      - name: commit-sha
+      # The relative code path to the Dockerfile
+      - name: docker-path
+      # Name of the Docker file to use. "Dockerfile" by default
+      - name: docker-file
+        value: Dockerfile
+      - name: image-name
+    container:
+      image: google/cloud-sdk
+      imagePullPolicy: 'Always'
+      command:
+        - bash
+        - -c
+        - |
+          CONTEXT_GCS_URI_PREFIX="{{inputs.parameters.commit-sha}}"
+          DOCKER_PATH="{{inputs.parameters.docker-path}}"
+          DOCKER_FILE="{{inputs.parameters.docker-file}}"
+          IMAGE_NAME="{{inputs.parameters.image-name}}"
+
+          if [ -z "$DOCKER_FILE" ]; then
+            DOCKER_FILE=Dockerfile
+          fi
+
+          BASE_DIR=/ml
+          mkdir $BASE_DIR
+          cd $BASE_DIR
+
+          echo "Choosing the Docker build context from $CONTEXT_GCS_URI_PREFIX..."
+          latest_remote_code_archive_uri=$(gsutil ls "${CONTEXT_GCS_URI_PREFIX}*.tar.gz" | sort | tail -n 1)
+
+          echo "Downloading Docker build context from $latest_remote_code_archive_uri..."
+          downloaded_code_archive_file=$(mktemp)
+          gsutil cp "$latest_remote_code_archive_uri" "$downloaded_code_archive_file"
+          tar -xzf "$local_code_archive_file" --directory .
+
+          echo "Waiting for Docker-in-Docker daemon to start..."
+          until docker ps; do sleep 3; done;
+
+          gcloud auth configure-docker
+
+          if [ "$BUILD_SCRIPT" == "" ]; then
+            echo "Build image ${IMAGE_NAME} using ${BASE_DIR}/${DOCKER_PATH}/${DOCKER_FILE}..."
+            docker build -t ${IMAGE_NAME} -f ${BASE_DIR}/${DOCKER_PATH}/${DOCKER_FILE} ${BASE_DIR}/${DOCKER_PATH}
+          else
+            echo "Build image ${IMAGE_NAME} using ${BUILD_SCRIPT}..."
+            cd $(dirname ${BUILD_SCRIPT})
+            bash $(basename ${BUILD_SCRIPT}) -i ${IMAGE_NAME}
+          fi
+
+          echo "Pushing image ${IMAGE_NAME}..."
+          docker push ${IMAGE_NAME}
+
+          image_name_output_file=/outputs/image-name/file
+          mkdir -p "$(basename "$image_name_output_file")"
+          echo $IMAGE_NAME > "$image_name_output_file"
+      outputs:
+        parameters:
+          - name: image-name
+            valueFrom: /outputs/image-name/file
       env:
       - name: DOCKER_HOST
         value: 127.0.0.1

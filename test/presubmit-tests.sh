@@ -70,6 +70,19 @@ echo "presubmit test starts"
 # activating the service account
 gcloud auth activate-service-account --key-file="${GOOGLE_APPLICATION_CREDENTIALS}"
 
+#Uploading the source code to GCS:
+function upload_source_code_to_gcs() {
+  local_code_archive_file=$(mktemp)
+  date_string=$(TZ=PST8PDT date +%Y-%m-%d_%H-%M-%S_%Z)
+  code_archive_prefix="gs://$TEST_RESULT_BUCKET/$PULL_PULL_SHA/source_code"
+  remote_code_arhive_uri="${code_archive_prefix}_${PULL_BASE_SHA}_${date_string}.tar.gz"
+
+  tar -czf "$local_code_archive_file" .
+
+  gsutil cp "$local_code_archive_file" "$remote_code_arhive_uri"
+}
+upload_source_code_to_gcs
+
 #Creating a new GKE cluster if needed
 if [ "$CLUSTER_TYPE" == "create-gke" ]; then
   echo "create test cluster"
