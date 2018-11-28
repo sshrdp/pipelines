@@ -54,27 +54,9 @@ def _generate_train_yaml(src_filename, tfjob_ns, workers, pss, trainer_image, co
   content['metadata']['generateName'] = 'trainer-'
   content['metadata']['namespace'] = tfjob_ns
 
-  if workers and pss:
-    content['spec']['tfReplicaSpecs']['PS']['replicas'] = pss
-    content['spec']['tfReplicaSpecs']['PS']['template']['spec']['containers'][0]['image'] = trainer_image
-    content['spec']['tfReplicaSpecs']['PS']['template']['spec']['containers'][0]['command'] = command
-    content['spec']['tfReplicaSpecs']['Worker']['replicas'] = workers
-    content['spec']['tfReplicaSpecs']['Worker']['template']['spec']['containers'][0]['image'] = trainer_image
-    content['spec']['tfReplicaSpecs']['Worker']['template']['spec']['containers'][0]['command'] = command
-    content['spec']['tfReplicaSpecs']['MASTER']['template']['spec']['containers'][0]['image'] = trainer_image
-    content['spec']['tfReplicaSpecs']['MASTER']['template']['spec']['containers'][0]['command'] = command
-  else:
-    # If no workers and pss set, default is 1.
-    master_spec = content['spec']['tfReplicaSpecs']['MASTER']
-    worker_spec = content['spec']['tfReplicaSpecs']['Worker']
-    ps_spec = content['spec']['tfReplicaSpecs']['PS']
-    master_spec['template']['spec']['containers'][0]['image'] = trainer_image
-    master_spec['template']['spec']['containers'][0]['command'] = command
-    worker_spec['template']['spec']['containers'][0]['image'] = trainer_image
-    worker_spec['template']['spec']['containers'][0]['command'] = command
-    ps_spec['template']['spec']['containers'][0]['image'] = trainer_image
-    ps_spec['template']['spec']['containers'][0]['command'] = command
-
+  worker_spec = content['spec']['tfReplicaSpecs']['Worker']
+  worker_spec['template']['spec']['containers'][0]['image'] = trainer_image
+  worker_spec['template']['spec']['containers'][0]['command'] = command
   return content
 
 def main(argv=None):
@@ -133,7 +115,7 @@ def main(argv=None):
   tfjob_ns = args_dict.pop('tfjob_ns')
   tfjob_timeout_minutes = args_dict.pop('tfjob_timeout_minutes')
   trainer_image = args.container_image or os.environ['TRAINER_IMAGE_NAME']
-  command=remaining_args
+  command = remaining_args
   logging.info('Generating training template.')
   template_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'train.template.yaml')
   content_yaml = _generate_train_yaml(template_file, tfjob_ns, workers, pss, trainer_image, command)

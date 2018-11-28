@@ -146,13 +146,13 @@ def make_training_input_fn(transformed_data_dir, mode, batch_size, target_name, 
   def _input_fn():
     """Input function for training and eval."""
     epochs = 1 if mode == 'eval' else num_epochs
-    transformed_features = tf.contrib.learn.io.read_batch_features(
+    transformed_features = tf.data.experimental.make_batched_features_dataset(
         os.path.join(transformed_data_dir, mode + '-*'),
-        batch_size, transformed_feature_spec, tf.TFRecordReader, num_epochs=epochs)
+        batch_size, transformed_feature_spec, tf.data.TFRecordDataset,
+        num_epochs=epochs, reader_num_threads=4, parser_num_threads=4, sloppy_ordering=True,
+        label_key=target_name)
 
-    # Extract features and label from the transformed tensors.
-    transformed_labels = transformed_features.pop(target_name)
-    return transformed_features, transformed_labels
+    return transformed_features
 
   return _input_fn
 
@@ -228,7 +228,12 @@ def get_estimator(schema, transformed_data_dir, target_name, output_dir, hidden_
     optimizer = tf.train.GradientDescentOptimizer(learning_rate)
 
   # Set how often to run checkpointing in terms of steps.
-  config = tf.contrib.learn.RunConfig(save_checkpoints_steps=1000)
+  config = tf.estimator.RunConfig(
+      experimental_distribute=tf.contrib.distribute.DistributeConfig(
+          train_distribute=tf.contrib.distribute.CollectiveAllReduceStrategy(
+              num_gpus_per_worker=0),
+          eval_distribute=tf.contrib.distribute.MirroredStrategy(
+              num_gpus_per_worker=0)))
   n_classes = is_classification(transformed_data_dir, target_name)
   if n_classes:
     estimator = tf.estimator.DNNClassifier(

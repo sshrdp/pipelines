@@ -23,15 +23,13 @@ RUN easy_install pip
 
 RUN apt-get install --no-install-recommends -y -q build-essential && \
     pip install pyyaml==3.12 six==1.11.0 \
-        tensorflow==1.6.0 \
+        tensorflow==1.12.0 \
         tensorflow-transform==0.6.0 \
         tensorflow-model-analysis==0.6.0 && \
     apt-get --purge autoremove -y build-essential
 
 ADD build /ml
 
-RUN mkdir /usr/licenses && \
-    /ml/license.sh /ml/third_party_licenses.csv /usr/licenses
 
 WORKDIR /ml
 

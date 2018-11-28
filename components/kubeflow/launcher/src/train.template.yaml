@@ -18,40 +18,20 @@ metadata:
   generateName: tfjob
   namespace: default
 spec:
+  cleanPodPolicy: None
   tfReplicaSpecs:
-    PS:
-      replicas: 1
-      restartPolicy: OnFailure
-      template:
-        spec:
-          containers:
-          - name: tensorflow
-            image: gcr.io/ml-pipeline/ml-pipeline-kubeflow-tf-trainer:0.1.0 #TODO-release: update the release tag for the next release
-            command:
-              - python
-              - -m
-              - trainer.task
     Worker:
-      replicas: 1
+      replicas: 4
       restartPolicy: OnFailure
       template:
         spec:
           containers:
           - name: tensorflow
             image: gcr.io/ml-pipeline/ml-pipeline-kubeflow-tf-trainer:0.1.0 #TODO-release: update the release tag for the next release
+            resources:
+              requests:
+                cpu: "1.5"
             command:
               - python
               - -m
               - trainer.task
-    MASTER:
-          replicas: 1
-          restartPolicy: OnFailure
-          template:
-            spec:
-              containers:
-              - name: tensorflow
-                image: gcr.io/ml-pipeline/ml-pipeline-kubeflow-tf-trainer:0.1.0 #TODO-release: update the release tag for the next release
-                command:
-                  - python
-                  - -m
-                  - trainer.task
